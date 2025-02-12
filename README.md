@@ -1,1 +1,9 @@
-# aws-architecture-case-studies
+# AWSでのインフラ構築を学ぶためのレポジトリ
+
+terraformを使って、AWS上にインフラを構築してみる
+
+| case  | 説明 |
+| ------------- | ------------- |
+| [#1](./case1/README.md)  | 複数AZにまたがるVPCの構築 |
+| [#2](./case2/README.md)  | 高可用性ウェブアプリケーションの構築 |
+| [#3](./case3/README.md)  | マイクロサービスアーキテクチャの構築（ECS利用 |
