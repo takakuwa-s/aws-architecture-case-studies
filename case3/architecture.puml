@@ -1,0 +1,61 @@
+@startuml aws_architecture
+' Uncomment the line below for "dark mode" styling
+'!$AWS_DARK = true
+
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v18.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/AWSSimplified.puml
+!include AWSPuml/Containers/Fargate.puml
+!include AWSPuml/Containers/ElasticContainerServiceTask.puml
+!include AWSPuml/Containers/ElasticContainerServiceService.puml
+!include AWSPuml/Groups/AWSCloud.puml
+!include AWSPuml/Groups/VPC.puml
+!include AWSPuml/Groups/AvailabilityZone.puml
+!include AWSPuml/Groups/PublicSubnet.puml
+!include AWSPuml/Groups/PrivateSubnet.puml
+!include AWSPuml/NetworkingContentDelivery/VPCNATGateway.puml
+!include AWSPuml/NetworkingContentDelivery/VPCInternetGateway.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+
+top to bottom direction
+hide stereotype
+skinparam linetype ortho
+
+title AWS Architecture case3
+
+actor "ユーザ" as user
+component "Another system" as another_system
+AWSCloudGroup(cloud) {
+  VPCGroup(vpc, "virtual private cloud (10.0.0.0/16)") {
+    VPCInternetGateway(internet_gateway, "internet gateway", "") #Transparent
+    ElasticLoadBalancingApplicationLoadBalancer(alb, "Application Load Balancer", "") #Transparent
+    user -d-> internet_gateway : HTTP
+    internet_gateway -d-> alb
+    another_system <.d. internet_gateway : HTTP
+
+    AvailabilityZoneGroup(az_1, "\tap-northeast-1a\t") {
+      PublicSubnetGroup(az_1_public, "public subnet\n(10.0.0.0/24)") {
+        ' EC2Instance(az_1_pub_ec2, "EC2", "") #Transparent
+        VPCNATGateway(az_1_nat_gateway, "NAT gateway", "") #Transparent
+      }
+      PrivateSubnetGroup(az_1_private, "private subnet\n(10.0.10.0/24)") {
+        ElasticContainerServiceService(az_1_ecs_1, "ECS", "") #Transparent
+        ElasticContainerServiceService(az_1_ecs_2, "ECS", "") #Transparent
+      }
+      alb -d-> az_1_ecs_1: /app1*
+      alb -d-> az_1_ecs_2: /app2*
+      az_1_nat_gateway .u.> internet_gateway
+      az_1_ecs_1 .u.> az_1_nat_gateway
+      az_1_ecs_2 .u.> az_1_nat_gateway
+    }
+    AvailabilityZoneGroup(az_2, "\tap-northeast-1c\t") {
+      PublicSubnetGroup(az_2_public, "public subnet\n(10.0.1.0/24)") {
+        ' EC2Instance(az_2_pub_ec2, "EC2", "") #Transparent
+      }
+    }
+    az_1_public -[hidden]r- alb 
+    alb -[hidden]r- az_2_public
+    az_1_public -[hidden]r- az_2_public
+  }
+}
+@enduml
