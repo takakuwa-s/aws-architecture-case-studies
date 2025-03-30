@@ -1,17 +1,17 @@
-resource "aws_lb" "ecs_alb" {
-  name               = "ecs-alb"
-  internal           = false
+resource "aws_lb" "alb" {
+  name               = "my-alb"
+  internal           = true
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = aws_subnet.public[*].id
+  subnets            = aws_subnet.private[*].id
 
-  tags = {
-    Name = "ecs-alb"
-  }
+  security_groups = [
+    aws_security_group.alb_sg.id
+  ]
 }
 
-resource "aws_lb_listener" "ecs_listener" {
-  load_balancer_arn = aws_lb.ecs_alb.arn
+# HTTP → HTTPS リダイレクトリスナー
+resource "aws_lb_listener" "listener" {
+  load_balancer_arn = aws_lb.alb.arn
   port              = "80"
   protocol          = "HTTP"
 
@@ -23,22 +23,17 @@ resource "aws_lb_listener" "ecs_listener" {
       status_code  = "404"
     }
   }
+
 }
 
-locals {
-  service_map = {
-    for idx, s in var.services :
-    s.name => {
-      path = s.path
-      idx  = idx
-    }
-  }
-}
 
+# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener_rule
 resource "aws_lb_listener_rule" "rules" {
-  for_each = local.service_map
+  for_each = {
+    for s in var.services : s.name => s
+  }
 
-  listener_arn = aws_lb_listener.ecs_listener.arn
+  listener_arn = aws_lb_listener.listener.arn
   priority     = 10 + each.value.idx
 
   action {
@@ -51,13 +46,9 @@ resource "aws_lb_listener_rule" "rules" {
       values = [each.value.path]
     }
   }
-
-  tags = {
-    Name = "rule-${each.key}"
-  }
 }
 
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group
+# ALB 用のターゲットグループ
 resource "aws_lb_target_group" "ecs_tgs" {
   for_each = {
     for s in var.services : s.name => s
@@ -70,12 +61,12 @@ resource "aws_lb_target_group" "ecs_tgs" {
   vpc_id      = aws_vpc.main.id
 
   health_check {
-    protocol = "HTTP"
-    path     = "/"
-    matcher  = "200"
-  }
-
-  tags = {
-    Name = "tg-${each.key}"
+    enabled             = true
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 5
+    interval            = 30
+    matcher             = "200"
+    path                = "/"
   }
 }
