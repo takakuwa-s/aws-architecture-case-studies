@@ -1,0 +1,72 @@
+@startuml sequence
+' Uncomment the line below for "dark mode" styling
+'!$AWS_DARK = true
+
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v18.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/AWSSimplified.puml
+!include AWSPuml/ApplicationIntegration/APIGateway.puml
+!include AWSPuml/ApplicationIntegration/EventBridgeCustomEventBus.puml
+!include AWSPuml/ApplicationIntegration/EventBridgePipes.puml
+!include AWSPuml/ApplicationIntegration/EventBridgeRule.puml
+!include AWSPuml/ApplicationIntegration/SimpleNotificationService.puml
+!include AWSPuml/ApplicationIntegration/SimpleQueueService.puml
+!include AWSPuml/Containers/ElasticContainerServiceService.puml
+!include AWSPuml/Containers/ElasticContainerServiceTask.puml
+!include AWSPuml/Database/DynamoDB.puml
+!include AWSPuml/Database/ElastiCacheElastiCacheforRedis.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+
+actor User
+APIGatewayParticipant(api_gateway, "API Gateway", "") #Transparent
+ElasticContainerServiceServiceParticipant(ecs, "ECS", "") #Transparent
+DynamoDBParticipant(dynamodb, "DynamoDB", "") #Transparent
+ElastiCacheElastiCacheforRedisParticipant(redis, "ElastiCache for Redis", "") #Transparent
+EventBridgePipesParticipant(eventbridgepipe, "EventBridgePipe", "") #Transparent
+EventBridgeCustomEventBusParticipant(eventbridgebus, "EventBridgeBus", "") #Transparent
+EventBridgeRuleParticipant(eventbridgerule, "EventBridgeRule", "") #Transparent
+SimpleQueueServiceParticipant(sqs, "SQS", "") #Transparent
+SimpleNotificationServiceParticipant(sns, "SNS", "") #Transparent
+
+
+group "Post a message"
+  User -> api_gateway : Post a message
+  api_gateway -> ecs : Invoke ECS
+  ecs -> dynamodb : Save post to DynamoDB
+  dynamodb -> ecs : Return result
+  ecs -> api_gateway : Response to user
+  api_gateway -> User : Response to user
+end
+
+group "Feed creation"
+  dynamodb -> eventbridgepipe : Invoke EventBridgePipe from DynamoDB stream
+  eventbridgepipe -> eventbridgebus : Forward event to EventBridgeBus
+  eventbridgebus -> eventbridgerule : Invoke EventBridgeRule
+  eventbridgerule -> sqs : Enqueue Event
+  sqs -> ecs : Dequeue Event
+  ecs -> dynamodb : Update DynamoDB for user feeds
+  dynamodb -> ecs : Return result
+  ecs -> redis : Update Redis for user feeds
+  redis -> ecs : Return result
+end
+
+group "Send an email after feed creation"
+  dynamodb -> eventbridgepipe : Invoke EventBridgePipe from DynamoDB stream
+  eventbridgepipe -> eventbridgebus : Forward event to EventBridgeBus
+  eventbridgebus -> eventbridgerule : Invoke EventBridgeRule
+  eventbridgerule -> sns : publish message
+  sns -> User : send notification email
+end
+
+group "Get feeds"
+  User -> api_gateway : Get feeds
+  api_gateway -> ecs : Invoke ECS
+  ecs -> redis : Get feeds from Redis if exists
+  redis -> ecs : Return feeds
+  ecs -> dynamodb : Get feeds from DynamoDB if not in Redis
+  dynamodb -> ecs : Return feeds
+  ecs -> api_gateway : Response to user
+  api_gateway -> User : Response to user
+end
+
+@enduml
