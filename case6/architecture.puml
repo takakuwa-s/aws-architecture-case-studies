@@ -1,0 +1,89 @@
+@startuml aws_architecture
+' Uncomment the line below for "dark mode" styling
+'!$AWS_DARK = true
+
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v18.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/AWSSimplified.puml
+!include AWSPuml/ApplicationIntegration/APIGateway.puml
+!include AWSPuml/Containers/ElasticContainerRegistry.puml
+!include AWSPuml/Containers/ElasticContainerServiceService.puml
+!include AWSPuml/Containers/ElasticKubernetesService.puml
+!include AWSPuml/Database/ElastiCacheElastiCacheforRedis.puml
+!include AWSPuml/Groups/AvailabilityZone.puml
+!include AWSPuml/Groups/AWSCloud.puml
+!include AWSPuml/Groups/PrivateSubnet.puml
+!include AWSPuml/Groups/VPC.puml
+!include AWSPuml/ManagementGovernance/CloudWatch.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/NetworkingContentDelivery/TransitGateway.puml
+!include AWSPuml/NetworkingContentDelivery/VPCEndpoints.puml
+!include AWSPuml/NetworkingContentDelivery/VPCInternetGateway.puml
+!include AWSPuml/NetworkingContentDelivery/VPCNATGateway.puml
+!include AWSPuml/NetworkingContentDelivery/VPCPeeringConnection.puml
+!include AWSPuml/Storage/SimpleStorageService.puml
+
+
+top to bottom direction
+hide stereotype
+skinparam linetype ortho
+
+title AWS Architecture case6
+
+actor "ユーザ" as user
+AWSCloudGroup(cloud) {
+  APIGateway(api_gateway, "API Gateway", "") #Transparent
+  
+  CloudWatch(cloudwatch, "CloudWatch", "") #Transparent
+  ElasticContainerRegistry(ecr, "Elastic Container Registry", "") #Transparent
+  SimpleStorageService(s3, "S3", "") #Transparent
+  TransitGateway(tgw, "Transit Gateway", "") #Transparent
+  VPCPeeringConnection(vpc_peering, "VPC Peering Connection", "") #Transparent
+
+  VPCGroup(vpc1, "virtual private cloud (10.0.0.0/16)") {
+    VPCEndpoints(vpc_endpoints1, "VPC endpoints", "") #Transparent
+    ElasticLoadBalancingApplicationLoadBalancer(alb, "Application Load Balancer", "") #Transparent
+    user <-d-> api_gateway : HTTPS
+    api_gateway <-d-> alb : VPC link
+
+    AvailabilityZoneGroup(az_1, "\tap-northeast-1a\t") {
+      PrivateSubnetGroup(az_1_private1, "private subnet\n(10.0.00.0/24)") {
+        ElasticContainerServiceService(az_1_ecs_1, "ECS", "") #Transparent
+      }
+      alb <-d-> az_1_ecs_1
+      az_1_ecs_1 <-d-> vpc_endpoints1
+    }
+    AvailabilityZoneGroup(az_2, "\tap-northeast-1c\t") {
+      PrivateSubnetGroup(az_2_private1, "private subnet\n(10.0.01.0/24)") {
+        ElasticContainerServiceService(az_2_ecs_1, "ECS", "") #Transparent
+      }
+      alb <-d-> az_2_ecs_1
+      az_2_ecs_1 <-d-> vpc_endpoints1
+    }
+
+    vpc_endpoints1 -[hidden]- cloudwatch
+    vpc_endpoints1 -[hidden]- s3
+    vpc_endpoints1 -[hidden]- ecr
+  }
+
+  VPCGroup(vpc2, "virtual private cloud (10.0.0.0/16)") {
+    VPCEndpoints(vpc_endpoints2, "VPC endpoints", "") #Transparent
+
+    AvailabilityZoneGroup(az_3, "\tap-northeast-1a\t") {
+      PrivateSubnetGroup(az_3_private1, "private subnet\n(10.0.00.0/24)") {
+        ElasticKubernetesService(az_3_eks_1, "EKS", "") #Transparent
+      }
+      az_3_eks_1 <-d-> vpc_endpoints2
+    }
+
+    vpc_endpoints2 -[hidden]- cloudwatch
+    vpc_endpoints2 -[hidden]- s3
+    vpc_endpoints2 -[hidden]- ecr
+  }
+
+  vpc1 <--> vpc_peering
+  vpc_peering <--> vpc2
+  vpc1 <--> tgw
+  tgw <--> vpc2
+}
+@enduml
